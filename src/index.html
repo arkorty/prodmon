@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Screen Monitor Pro</title>
+    <link rel="stylesheet" href="index.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <div class="sidebar">
+        <div class="app-header">
+          <h1>Screen Monitor Pro</h1>
+          <div class="status-indicator active">
+            <span class="status-dot"></span>
+            Monitoring Active
+          </div>
+        </div>
+        
+        <div class="monitoring-stats">
+          <div class="stat-card">
+            <div class="stat-title">Next Screenshot</div>
+            <div class="progress-container">
+              <div class="progress-bar" id="screenshotProgress"></div>
+              <div class="progress-text" id="countdown">30s</div>
+            </div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-title">Today's Activity</div>
+            <div class="stat-grid">
+              <div class="stat-item">
+                <span class="stat-value" id="totalScreenshots">0</span>
+                <span class="stat-label">Screenshots</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value" id="totalAnomalies">0</span>
+                <span class="stat-label">Anomalies</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-content">
+        <div class="content-header">
+          <h2>Recent Activity</h2>
+          <div class="view-controls">
+            <button class="view-btn active" data-view="grid">Grid View</button>
+            <button class="view-btn" data-view="list">List View</button>
+          </div>
+        </div>
+
+        <div id="notification" class="notification"></div>
+        
+        <div class="screenshot-grid" id="screenshotList">
+          <!-- Screenshots will be added here dynamically -->
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { ipcRenderer } = require("electron");
+      let totalScreenshots = 0;
+      let totalAnomalies = 0;
+
+      function updateCountdown(seconds) {
+        const progressBar = document.getElementById("screenshotProgress");
+        const countdownElement = document.getElementById("countdown");
+        
+        // Update progress bar
+        const progressPercent = (seconds / 30) * 100;
+        progressBar.style.width = `${progressPercent}%`;
+        
+        // Update countdown text
+        const minutes = Math.floor(seconds / 60);
+        const remainingSeconds = seconds % 60;
+        countdownElement.textContent = `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+      }
+
+      function showNotification(message, type = "success") {
+        const notification = document.getElementById("notification");
+        notification.textContent = message;
+        notification.className = `notification ${type}`;
+        notification.style.display = "block";
+
+        setTimeout(() => {
+          notification.style.display = "none";
+        }, 3000);
+      }
+
+      function addScreenshotToList(screenshotPath) {
+        const list = document.getElementById("screenshotList");
+        const item = document.createElement("div");
+        item.className = "screenshot-card";
+        item.id = `screenshot-${screenshotPath.split("/").pop()}`;
+
+        const timestamp = new Date().toLocaleString();
+        const relativePath = screenshotPath.split("/").pop();
+
+        item.innerHTML = `
+          <div class="screenshot-preview">
+            <img src="file://${screenshotPath}" alt="Screenshot">
+            <div class="screenshot-overlay">
+              <div class="screenshot-time">${timestamp}</div>
+            </div>
+          </div>
+          <div class="screenshot-details">
+            <div class="analysis-status">
+              <div class="analysis-indicator"></div>
+              <span>Analyzing...</span>
+            </div>
+            <div class="analysis-result loading">
+              <div class="analysis-spinner"></div>
+              Analyzing screenshot...
+            </div>
+          </div>
+        `;
+
+        list.insertBefore(item, list.firstChild);
+        
+        // Update stats
+        totalScreenshots++;
+        document.getElementById("totalScreenshots").textContent = totalScreenshots;
+        
+        return item;
+      }
+
+      function updateScreenshotAnalysis(screenshotPath, analysis) {
+        const item = document.getElementById(`screenshot-${screenshotPath.split("/").pop()}`);
+        if (item) {
+          const analysisDiv = item.querySelector(".analysis-result");
+          const statusDiv = item.querySelector(".analysis-status");
+          analysisDiv.className = "analysis-result";
+
+          if (!analysis || analysis.status !== "success" || !analysis.analysis) {
+            analysisDiv.innerHTML = `
+              <div class="analysis-error">
+                <svg viewBox="0 0 24 24" class="error-icon">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
+                No analysis available
+              </div>
+            `;
+            return;
+          }
+
+          const a = analysis.analysis;
+          const hasAnomalies = a.anomalies && a.anomalies.length > 0;
+          
+          if (hasAnomalies) {
+            totalAnomalies += a.anomalies.length;
+            document.getElementById("totalAnomalies").textContent = totalAnomalies;
+          }
+
+          statusDiv.innerHTML = `
+            <div class="analysis-indicator ${hasAnomalies ? 'warning' : 'success'}"></div>
+            <span>${hasAnomalies ? 'Anomaly Detected' : 'No Anomalies'}</span>
+          `;
+
+          let html = `
+            <div class="analysis-summary ${hasAnomalies ? 'has-anomalies' : ''}">
+              <div class="analysis-header">
+                <span class="role-badge">${a.baseline_role}</span>
+                <span class="confidence-score">
+                  ${hasAnomalies ? `Confidence: ${Math.round(a.anomalies[0].confidence * 100)}%` : ''}
+                </span>
+              </div>
+          `;
+
+          if (hasAnomalies) {
+            html += '<div class="anomalies-list">';
+            a.anomalies.forEach(anomaly => {
+              html += `
+                <div class="anomaly-item">
+                  <div class="anomaly-header">
+                    <span class="anomaly-type">${anomaly.type.replace(/([A-Z])/g, ' $1').trim()}</span>
+                    <span class="anomaly-confidence">${Math.round(anomaly.confidence * 100)}%</span>
+                  </div>
+                  <p class="anomaly-explanation">${anomaly.explanation}</p>
+                </div>
+              `;
+            });
+            html += '</div>';
+          }
+
+          html += '</div>';
+          analysisDiv.innerHTML = html;
+        }
+      }
+
+      // View switching functionality
+      document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          const view = btn.dataset.view;
+          const list = document.getElementById('screenshotList');
+          list.className = view === 'grid' ? 'screenshot-grid' : 'screenshot-list';
+        });
+      });
+
+      // Restore ipcRenderer event listeners for real-time updates
+      ipcRenderer.on("countdown-update", (event, seconds) => {
+        updateCountdown(seconds);
+      });
+
+      ipcRenderer.on("screenshot-taken", (event, screenshotPath) => {
+        showNotification("Screenshot taken successfully!");
+        addScreenshotToList(screenshotPath);
+      });
+
+      ipcRenderer.on("screenshot-analysis", (event, data) => {
+        updateScreenshotAnalysis(data.screenshotPath, data.analysis);
+      });
+
+      ipcRenderer.on("screenshot-error", (event, error) => {
+        showNotification(`Error: ${error}`, "error");
+      });
+    </script>
+  </body>
+</html>
