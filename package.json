@@ -1,6 +1,6 @@
 {
-  "name": "monitor",
-  "productName": "Monitor",
+  "name": "prodmon",
+  "productName": "prodmon",
   "version": "1.0.0",
   "description": "Desktop monitoring application",
   "main": "src/index.js",

@@ -2,17 +2,25 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Screen Monitor Pro</title>
+    <title>prodmon</title>
     <link rel="stylesheet" href="index.css" />
   </head>
   <body>
     <div class="app-container">
       <div class="sidebar">
         <div class="app-header">
-          <h1>Screen Monitor Pro</h1>
+          <h1>prodmon</h1>
           <div class="status-indicator active">
             <span class="status-dot"></span>
             Monitoring Active
+          </div>
+          
+          <div class="model-selector">
+            <label for="model-select">AI Model</label>
+            <select id="model-select">
+              <option value="gemini">Gemini</option>
+              <option value="gemma">Local Model</option>
+            </select>
           </div>
         </div>
         
@@ -216,6 +224,13 @@
 
       ipcRenderer.on("screenshot-error", (event, error) => {
         showNotification(`Error: ${error}`, "error");
+      });
+
+      // Add model selection handler
+      document.getElementById('model-select').addEventListener('change', (e) => {
+        const selectedModel = e.target.value;
+        ipcRenderer.send('model-changed', selectedModel);
+        showNotification(`AI model changed to ${selectedModel}`);
       });
     </script>
   </body>

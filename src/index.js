@@ -7,6 +7,9 @@ const { spawn, exec } = require("child_process");
 
 const appName = require("../package.json").name;
 
+// Add model state
+let currentModel = "gemini";
+
 const screenshotsDir = path.join(
   os.homedir(),
   ".cache",
@@ -69,10 +72,17 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
     },
+    icon: path.join(__dirname, 'assets', 'prodmon.png'),
   });
 
   mainWindow.loadFile("src/index.html");
 }
+
+// Add model selection handler
+ipcMain.on("model-changed", (event, model) => {
+  currentModel = model;
+  console.log(`Model changed to: ${model}`);
+});
 
 async function takeScreenshot() {
   try {
@@ -93,12 +103,10 @@ async function takeScreenshot() {
       pythonScript,
       "--single",
       screenshotPath,
-      "--prohibited",
-      prohibitedPath,
       "--role",
       "developer",
       "--model",
-      "gemini",
+      currentModel,
     ]);
 
     let outputData = "";
