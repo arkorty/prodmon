@@ -1,0 +1,3 @@
+[submodule "src/logic"]
+	path = src/logic
+	url = git@github.com:arkorty/prodmon-logic.git
