@@ -16,9 +16,8 @@
 
 ## Screenshots
 
-### prodmon flags YouTube as unproductive
-
 ![prodmon in action](blob/screenshot.png)
+_example screenshot 1: prodmon flags YouTube as unproductive_
 
 ## Project Structure
 
